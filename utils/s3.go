@@ -103,6 +103,8 @@ func DownloadFromS3(s3URL, phoneNumber string) (string, error) {
 	if err != nil {
 		log.Printf("❌ ERROR: Failed to create directory %s - %v", localDir, err)
 		return "", err
+	} else {
+		log.Printf("✅ Created directory: %s", localDir)
 	}
 
 	localPath := filepath.Join(localDir, "chat.db")
@@ -141,7 +143,6 @@ func DownloadFromS3(s3URL, phoneNumber string) (string, error) {
 
 	return localPath, nil
 }
-
 
 
 // sanitizeFileName ensures safe filenames by removing spaces and special characters
