@@ -97,9 +97,11 @@ func UploadFolderToS3(folderPath, requesterName string) ([]string, error) {
 func DownloadFromS3(s3URL, requesterName string) (string, error) {
 	// Define correct download path
 	localDir := filepath.Join("/var/imessage/downloads", sanitizeFileName(requesterName))
-	err := os.MkdirAll(localDir, 0777) // Ensure the directory exists
+
+	// ✅ Ensure the directory exists
+	err := os.MkdirAll(localDir, 0777)
 	if err != nil {
-		log.Printf("❌ ERROR: Failed to create directory: %s - %v", localDir, err)
+		log.Printf("❌ ERROR: Failed to create directory %s - %v", localDir, err)
 		return "", err
 	}
 
@@ -139,7 +141,6 @@ func DownloadFromS3(s3URL, requesterName string) (string, error) {
 
 	return localPath, nil
 }
-
 
 
 // sanitizeFileName ensures safe filenames by removing spaces and special characters

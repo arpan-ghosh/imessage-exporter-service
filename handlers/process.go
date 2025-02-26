@@ -20,9 +20,8 @@ func ProcessChatDB(w http.ResponseWriter, r *http.Request) {
 		S3URL        string `json:"s3_url"`
 		PhoneNumber  string `json:"phone_number"`
 		ContactName  string `json:"contact_name"`
-		RequesterName string `json:"requester_name"` // New field
+		RequesterName string `json:"requester_name"`
 	}
-	
 
 	err := json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
@@ -31,25 +30,35 @@ func ProcessChatDB(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create temporary directory
-	tempDir := "/var/imessage"
-	os.MkdirAll(tempDir, 0777)
 	// Define proper directory structure: /var/imessage/downloads/<RequesterName>/chat.db
+	tempDir := "/var/imessage"
 	localChatDBDir := filepath.Join(tempDir, "downloads", request.RequesterName)
 
-	// Download chat.db from S3 to the correct requester folder
+	// Ensure the requester-specific directory exists
+	err = os.MkdirAll(localChatDBDir, 0777)
+	if err != nil {
+		log.Printf("❌ ERROR: Failed to create directory %s - %v", localChatDBDir, err)
+		http.Error(w, "Failed to create directory for processing", http.StatusInternalServerError)
+		return
+	}
+
+	// Download chat.db from S3
 	log.Printf("⬇️ Downloading chat.db from S3 for requester: %s\n", request.RequesterName)
 	localChatDB, err := utils.DownloadFromS3(request.S3URL, request.RequesterName)
 	if err != nil {
 		log.Printf("❌ Error downloading chat.db: %v\n", err)
 		http.Error(w, "Failed to download chat.db", http.StatusInternalServerError)
 		return
-	}	
-	
+	}
 
-	// Create output directory
-	outputDir := filepath.Join(tempDir, "output")
-	os.MkdirAll(outputDir, 0777)
+	// Create output directory specific to the requester
+	outputDir := filepath.Join(tempDir, "output", request.RequesterName)
+	err = os.MkdirAll(outputDir, 0777)
+	if err != nil {
+		log.Printf("❌ ERROR: Failed to create output directory %s - %v", outputDir, err)
+		http.Error(w, "Failed to create output directory", http.StatusInternalServerError)
+		return
+	}
 
 	// Run imessage-exporter for both html and txt
 	err = runImessageExporter(localChatDB, outputDir, request.PhoneNumber)
