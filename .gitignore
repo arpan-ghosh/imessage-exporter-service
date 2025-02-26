@@ -1,0 +1,31 @@
+# Compiled binaries
+/imessage-service
+/webservice
+*.exe
+*.out
+*.o
+
+# Go Modules
+/go/pkg/
+/go/bin/
+/vendor/
+
+# Dependency directories
+/vendor/
+/node_modules/
+
+# IDE & Editor Configs
+*.swp
+*.swo
+.idea/
+.vscode/
+*.log
+
+# Logs & temp files
+*.log
+/tmp
+.DS_Store
+
+# Environment variables
+.env
+
