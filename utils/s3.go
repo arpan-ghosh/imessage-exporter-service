@@ -97,17 +97,19 @@ func UploadFolderToS3(folderPath, requesterName string) ([]string, error) {
 func DownloadFromS3(s3URL, phoneNumber string) (string, error) {
 	// Define correct download path based on phone number
 	localDir := filepath.Join("/var/imessage/downloads", sanitizeFileName(phoneNumber))
+	localPath := filepath.Join(localDir, "chat.db")
 
-	// ✅ Ensure the directory exists
+	log.Printf("📂 Ensuring directory exists: %s", localDir)
+
+	// ✅ Ensure the directory exists before writing the file
 	err := os.MkdirAll(localDir, 0777)
 	if err != nil {
 		log.Printf("❌ ERROR: Failed to create directory %s - %v", localDir, err)
 		return "", err
 	} else {
 		log.Printf("✅ Created directory: %s", localDir)
+		log.Printf("✅ Directory ready: %s", localDir)
 	}
-
-	localPath := filepath.Join(localDir, "chat.db")
 
 	// Extract S3 Key from URL
 	s3Key := strings.TrimPrefix(s3URL, fmt.Sprintf("https://%s.s3.amazonaws.com/", config.GetEnv("AWS_S3_BUCKET", "")))
@@ -125,6 +127,17 @@ func DownloadFromS3(s3URL, phoneNumber string) (string, error) {
 		return "", err
 	}
 	defer result.Body.Close()
+
+	// Verify directory exists before writing file
+	fileDir := filepath.Dir(localPath)
+	if _, err := os.Stat(fileDir); os.IsNotExist(err) {
+		log.Printf("❌ ERROR: Directory %s does not exist. Creating it now...", fileDir)
+		if err := os.MkdirAll(fileDir, 0777); err != nil {
+			log.Printf("❌ ERROR: Could not create directory %s - %v", fileDir, err)
+			return "", err
+		}
+		log.Printf("✅ Successfully created directory: %s", fileDir)
+	}
 
 	outFile, err := os.Create(localPath)
 	if err != nil {
