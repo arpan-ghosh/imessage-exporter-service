@@ -37,23 +37,15 @@ func ProcessChatDB(w http.ResponseWriter, r *http.Request) {
 	// Define proper directory structure: /var/imessage/downloads/<RequesterName>/chat.db
 	localChatDBDir := filepath.Join(tempDir, "downloads", request.RequesterName)
 
-	// Download chat.db from S3
-	log.Printf("⬇️ Downloading chat.db from S3 into %s\n", localChatDBDir)
-	err = utils.DownloadFromS3(request.S3URL, localChatDBDir, request.RequesterName)
+	// Download chat.db from S3 to the correct requester folder
+	log.Printf("⬇️ Downloading chat.db from S3 for requester: %s\n", request.RequesterName)
+	localChatDB, err := utils.DownloadFromS3(request.S3URL, request.RequesterName)
 	if err != nil {
 		log.Printf("❌ Error downloading chat.db: %v\n", err)
 		http.Error(w, "Failed to download chat.db", http.StatusInternalServerError)
 		return
-	}
-
-	// Correct path where chat.db is stored
-	localChatDB := filepath.Join(localChatDBDir, "chat.db")
-
-	if err != nil {
-		log.Printf("❌ Error downloading chat.db: %v\n", err)
-		http.Error(w, "Failed to download chat.db", http.StatusInternalServerError)
-		return
-	}
+	}	
+	
 
 	// Create output directory
 	outputDir := filepath.Join(tempDir, "output")

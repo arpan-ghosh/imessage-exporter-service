@@ -94,13 +94,13 @@ func UploadFolderToS3(folderPath, requesterName string) ([]string, error) {
 }
 
 // DownloadFromS3 downloads a file from S3 into "downloads/<RequesterName>/chat.db"
-func DownloadFromS3(s3URL, localBaseDir, requesterName string) error {
-	// Ensure the directory structure exists
-	localDir := filepath.Join(localBaseDir, sanitizeFileName(requesterName))
-	err := os.MkdirAll(localDir, 0777) // Ensure all parent directories exist
+func DownloadFromS3(s3URL, requesterName string) (string, error) {
+	// Define correct download path
+	localDir := filepath.Join("/var/imessage/downloads", sanitizeFileName(requesterName))
+	err := os.MkdirAll(localDir, 0777) // Ensure the directory exists
 	if err != nil {
 		log.Printf("❌ ERROR: Failed to create directory: %s - %v", localDir, err)
-		return err
+		return "", err
 	}
 
 	localPath := filepath.Join(localDir, "chat.db")
@@ -118,24 +118,26 @@ func DownloadFromS3(s3URL, localBaseDir, requesterName string) error {
 	result, err := config.S3Client.GetObject(context.TODO(), input)
 	if err != nil {
 		log.Printf("❌ ERROR: Failed to download %s: %v", s3Key, err)
-		return err
+		return "", err
 	}
 	defer result.Body.Close()
 
 	outFile, err := os.Create(localPath)
 	if err != nil {
 		log.Printf("❌ ERROR: Could not create file: %s - %v", localPath, err)
-		return err
+		return "", err
 	}
 	defer outFile.Close()
 
 	_, err = io.Copy(outFile, result.Body)
 	if err != nil {
 		log.Printf("❌ ERROR: Failed to write file: %s - %v", localPath, err)
+		return "", err
 	} else {
 		log.Printf("✅ Successfully downloaded %s to %s", s3Key, localPath)
 	}
-	return err
+
+	return localPath, nil
 }
 
 
