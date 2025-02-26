@@ -30,11 +30,11 @@ func ProcessChatDB(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Define proper directory structure: /var/imessage/downloads/<RequesterName>/chat.db
+	// Define directory structure: /var/imessage/downloads/<PhoneNumber>/chat.db
 	tempDir := "/var/imessage"
-	localChatDBDir := filepath.Join(tempDir, "downloads", request.RequesterName)
+	localChatDBDir := filepath.Join(tempDir, "downloads", request.PhoneNumber)
 
-	// Ensure the requester-specific directory exists
+	// Ensure the phone number-based directory exists
 	err = os.MkdirAll(localChatDBDir, 0777)
 	if err != nil {
 		log.Printf("❌ ERROR: Failed to create directory %s - %v", localChatDBDir, err)
@@ -42,17 +42,17 @@ func ProcessChatDB(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Download chat.db from S3
-	log.Printf("⬇️ Downloading chat.db from S3 for requester: %s\n", request.RequesterName)
-	localChatDB, err := utils.DownloadFromS3(request.S3URL, request.RequesterName)
+	// Download chat.db from S3 into /var/imessage/downloads/<PhoneNumber>/chat.db
+	log.Printf("⬇️ Downloading chat.db from S3 for phone number: %s\n", request.PhoneNumber)
+	localChatDB, err := utils.DownloadFromS3(request.S3URL, request.PhoneNumber)
 	if err != nil {
 		log.Printf("❌ Error downloading chat.db: %v\n", err)
 		http.Error(w, "Failed to download chat.db", http.StatusInternalServerError)
 		return
 	}
 
-	// Create output directory specific to the requester
-	outputDir := filepath.Join(tempDir, "output", request.RequesterName)
+	// Create output directory: /var/imessage/output/<PhoneNumber>/
+	outputDir := filepath.Join(tempDir, "output", request.PhoneNumber)
 	err = os.MkdirAll(outputDir, 0777)
 	if err != nil {
 		log.Printf("❌ ERROR: Failed to create output directory %s - %v", outputDir, err)
@@ -69,7 +69,7 @@ func ProcessChatDB(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Upload extracted files to S3
-	files, err := utils.UploadFolderToS3(outputDir, request.RequesterName)
+	files, err := utils.UploadFolderToS3(outputDir, request.PhoneNumber)
 	if err != nil {
 		log.Printf("❌ Error uploading extracted files to S3: %v\n", err)
 		http.Error(w, "Failed to upload extracted messages", http.StatusInternalServerError)
@@ -84,6 +84,7 @@ func ProcessChatDB(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
+
 
 func runImessageExporter(localChatDB, outputDir, phoneNumber string) error {
 	formats := []string{"html", "txt"}

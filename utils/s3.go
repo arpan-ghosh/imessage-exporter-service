@@ -93,10 +93,10 @@ func UploadFolderToS3(folderPath, requesterName string) ([]string, error) {
 	return uploadedFiles, nil
 }
 
-// DownloadFromS3 downloads a file from S3 into "downloads/<RequesterName>/chat.db"
-func DownloadFromS3(s3URL, requesterName string) (string, error) {
-	// Define correct download path
-	localDir := filepath.Join("/var/imessage/downloads", sanitizeFileName(requesterName))
+// DownloadFromS3 downloads a file from S3 into "downloads/<PhoneNumber>/chat.db"
+func DownloadFromS3(s3URL, phoneNumber string) (string, error) {
+	// Define correct download path based on phone number
+	localDir := filepath.Join("/var/imessage/downloads", sanitizeFileName(phoneNumber))
 
 	// ✅ Ensure the directory exists
 	err := os.MkdirAll(localDir, 0777)
@@ -141,6 +141,7 @@ func DownloadFromS3(s3URL, requesterName string) (string, error) {
 
 	return localPath, nil
 }
+
 
 
 // sanitizeFileName ensures safe filenames by removing spaces and special characters
