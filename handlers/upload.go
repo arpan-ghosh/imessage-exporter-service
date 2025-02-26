@@ -25,6 +25,11 @@ func UploadChatDB(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
+	requesterName := r.FormValue("requester_name")
+	if requesterName == "dev" {
+		requesterName = "arpanghosh" // Default value if not provided
+	}
+
 	// Save file locally before upload
 	tempDir := os.TempDir()
 	filePath := filepath.Join(tempDir, handler.Filename)
@@ -41,7 +46,7 @@ func UploadChatDB(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Upload to S3
-	s3URL, err := utils.UploadToS3(filePath, handler.Filename)
+	s3URL, err := utils.UploadToS3(filePath, handler.Filename, requesterName)
 	if err != nil {
 		http.Error(w, "Failed to upload to S3", http.StatusInternalServerError)
 		return

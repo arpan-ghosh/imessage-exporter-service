@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"log"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,8 +16,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
-// UploadToS3 uploads a single file to S3
-func UploadToS3(filePath, fileName string) (string, error) {
+// UploadToS3 uploads a single file to S3, storing it under "exports/<RequesterName>/..."
+func UploadToS3(filePath, fileName, requesterName string) (string, error) {
 	// Ensure S3Client is initialized
 	if config.S3Client == nil {
 		log.Println("❌ ERROR: S3Client is not initialized")
@@ -38,7 +38,11 @@ func UploadToS3(filePath, fileName string) (string, error) {
 		return "", fmt.Errorf("AWS_S3_BUCKET is not set")
 	}
 
-	s3Key := fmt.Sprintf("exports/%s", fileName)
+	// Sanitize the requester name for safe file paths
+	sanitizedRequester := sanitizeFileName(requesterName)
+
+	// Store files under a requester-specific folder
+	s3Key := fmt.Sprintf("exports/%s/%s", sanitizedRequester, fileName)
 	log.Printf("📤 Uploading file to S3: bucket=%s, key=%s\n", bucketName, s3Key)
 
 	// Read file contents
@@ -66,8 +70,8 @@ func UploadToS3(filePath, fileName string) (string, error) {
 	return s3URL, nil
 }
 
-// UploadFolderToS3 uploads all files in a folder to S3
-func UploadFolderToS3(folderPath string) ([]string, error) {
+// UploadFolderToS3 uploads all files in a folder to S3 under "exports/<RequesterName>/"
+func UploadFolderToS3(folderPath, requesterName string) ([]string, error) {
 	files, err := os.ReadDir(folderPath)
 	if err != nil {
 		return nil, err
@@ -77,7 +81,7 @@ func UploadFolderToS3(folderPath string) ([]string, error) {
 	for _, file := range files {
 		if !file.IsDir() {
 			filePath := filepath.Join(folderPath, file.Name())
-			s3URL, err := UploadToS3(filePath, file.Name())
+			s3URL, err := UploadToS3(filePath, file.Name(), requesterName)
 			if err != nil {
 				log.Printf("⚠️ Failed to upload file: %s", filePath)
 				continue
@@ -89,38 +93,54 @@ func UploadFolderToS3(folderPath string) ([]string, error) {
 	return uploadedFiles, nil
 }
 
-// DownloadFromS3 downloads a file from S3 and saves it locally
-func DownloadFromS3(s3URL, destinationPath string) error {
-	parsedURL, err := url.Parse(s3URL)
+// DownloadFromS3 downloads a file from S3 into "downloads/<RequesterName>/chat.db"
+func DownloadFromS3(s3URL, localBaseDir, requesterName string) error {
+	// Ensure the directory structure exists
+	localDir := filepath.Join(localBaseDir, sanitizeFileName(requesterName))
+	err := os.MkdirAll(localDir, 0777) // Ensure all parent directories exist
 	if err != nil {
-		return fmt.Errorf("invalid S3 URL: %v", err)
-	}
-
-	// Extract bucket and key from the S3 URL
-	bucketName := strings.Split(parsedURL.Host, ".")[0]
-	objectKey := strings.TrimPrefix(parsedURL.Path, "/")
-
-	// Download the file
-	outputFile, err := os.Create(destinationPath)
-	if err != nil {
-		return err
-	}
-	defer outputFile.Close()
-
-	resp, err := config.S3Client.GetObject(context.TODO(), &s3.GetObjectInput{
-		Bucket: aws.String(bucketName),
-		Key:    aws.String(objectKey),
-	})
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	_, err = outputFile.ReadFrom(resp.Body)
-	if err != nil {
+		log.Printf("❌ ERROR: Failed to create directory: %s - %v", localDir, err)
 		return err
 	}
 
-	log.Printf("✅ Downloaded file from S3: %s", destinationPath)
-	return nil
+	localPath := filepath.Join(localDir, "chat.db")
+
+	// Extract S3 Key from URL
+	s3Key := strings.TrimPrefix(s3URL, fmt.Sprintf("https://%s.s3.amazonaws.com/", config.GetEnv("AWS_S3_BUCKET", "")))
+	log.Printf("⬇️ Downloading %s from S3 to %s", s3Key, localPath)
+
+	// Download file from S3
+	input := &s3.GetObjectInput{
+		Bucket: aws.String(config.GetEnv("AWS_S3_BUCKET", "")),
+		Key:    aws.String(s3Key),
+	}
+
+	result, err := config.S3Client.GetObject(context.TODO(), input)
+	if err != nil {
+		log.Printf("❌ ERROR: Failed to download %s: %v", s3Key, err)
+		return err
+	}
+	defer result.Body.Close()
+
+	outFile, err := os.Create(localPath)
+	if err != nil {
+		log.Printf("❌ ERROR: Could not create file: %s - %v", localPath, err)
+		return err
+	}
+	defer outFile.Close()
+
+	_, err = io.Copy(outFile, result.Body)
+	if err != nil {
+		log.Printf("❌ ERROR: Failed to write file: %s - %v", localPath, err)
+	} else {
+		log.Printf("✅ Successfully downloaded %s to %s", s3Key, localPath)
+	}
+	return err
+}
+
+
+
+// sanitizeFileName ensures safe filenames by removing spaces and special characters
+func sanitizeFileName(name string) string {
+	return strings.ReplaceAll(strings.ToLower(strings.TrimSpace(name)), " ", "_")
 }
