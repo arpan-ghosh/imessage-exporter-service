@@ -85,7 +85,6 @@ func ProcessChatDB(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// runImessageExporter runs imessage-exporter twice: once for HTML, once for TXT
 func runImessageExporter(localChatDB, outputDir, phoneNumber string) error {
 	formats := []string{"html", "txt"}
 
@@ -96,14 +95,16 @@ func runImessageExporter(localChatDB, outputDir, phoneNumber string) error {
 			"-o", outputDir,
 			"-f", format)
 
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+		// ✅ Capture both stdout & stderr
+		output, err := cmd.CombinedOutput()
+		log.Printf("⚡ Running imessage-exporter with format: %s...\nCommand: imessage-exporter -p %s -t %s -o %s -f %s\nOutput: %s",
+			format, localChatDB, phoneNumber, outputDir, format, string(output))
 
-		log.Printf("⚡ Running imessage-exporter with format: %s...", format)
-		if err := cmd.Run(); err != nil {
-			log.Printf("❌ Error running imessage-exporter (%s): %v", format, err)
+		if err != nil {
+			log.Printf("❌ imessage-exporter error (format: %s): %v\nOutput: %s", format, err, string(output))
 			return err
 		}
 	}
 	return nil
 }
+
